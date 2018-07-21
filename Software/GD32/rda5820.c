@@ -19,89 +19,46 @@
 #define RDA5820_SCLK_GPIO_PORT                  GPIOA
 #define RDA5820_SCLK_GPIO_CLK                   RCU_GPIOA
 
-#define _SHARE_CRYSTAL_32KHz_
 #define RDA5820_I2C_ADDR 0x22
 
 #define MCU_OWN_ADDRESS7   0xAA
 
-uint16_t RDA5820_tab[][2] = {
-	{0x02, 0x0002},//SOFT_RESET
-	{0x02, 0x8001},//Audio Output,ENABLE
-	{0x02, 0x8001},
-	/*****************************/
-	{0x03, 0x0000},
-	{0x04, 0x0400},
-	{0x05, 0x8840},//LNAN
-};
-
-uint16_t RDA5820_Intialization_tab[][2] = {
-	#if defined(_FM_STEP_50K_)
-	{0x03, 0x0002},
-	#else
-	{0x03, 0x0000},
-	#endif
-	{0x04, 0x0400},
-	{0x05, 0x8840},
-	/**********************************/
-	{0x07, 0x7800},
-};
+uint16_t RDA5820_CHAN_REG;
 
 uint16_t RDA5820NS_RX_Intialization_tab[][2]=
 {
-#if defined(_FM_STEP_50K_)
-	{0x03, 0x0002},
-#else
 	{0x03, 0x0000},
-#endif
 	{0x04, 0x0400},
-	{0x05, 0x886F},
+	{0x05, 0x8840},
 	/**********************************/
-	{0x40, 0x0000},//FM Receive
 };
 
 uint16_t RDA5820NS_TX_Intialization_tab[][2]=
 {
-	#if defined(_FM_STEP_50K_)
-	{0x03, 0x0002},
-	#else
 	{0x03, 0x0000},
-	#endif
 	{0x04, 0x0C00},//De-emphasis:50us;
-	{0x05, 0x884f},
+	{0x05, 0x880f},
 	/**********************************/
 	{0x68, 0x1CF0},
-	{0x40, 0x0001},//FM Transmit
 };
 
 uint16_t RDA5820NS_TXI2S_Intialization_tab[][2]=
 {
-	#if defined(_FM_STEP_50K_)
-	{0x03, 0x0002},
-	#else
 	{0x03, 0x0000},
-	#endif
 	{0x04, 0x0C00},//De-emphasis:50us;
-	{0x05, 0x8840},
+	{0x05, 0x884F},
 	/**********************************/
 	{0x06, 0x1270},//I2S Slave mode,44.1KHz,signed 16-bit
 	{0x04, 0x0C40},//De-emphasis:50us;I2S Enable
 	{0x68, 0x00F0},
-	{0x40, 0x0001},//FM Transmit
 };
 
 uint16_t RDA5820NS_DAC_Intialization_tab[][2]=
 {
-	#if defined(_FM_STEP_50K_)
-	{0x03, 0x0002}, //0
-	#else
-	{0x03, 0x0000}, //0
-	#endif
-	{0x04, 0x0C40},//De-emphasis:50us;I2S Enable //1
-	{0x05, 0x884f},	//2
-	/**********************************/
-	{0x06, 0x1270},//I2S slave mode,44.1KHz,signed 16-bit
-	{0x68, 0x1DFF},
-	{0x40, 0x000C},//Codec
+	{0x06, 0x1270},//I2S Slave mode,44.1KHz,signed 16-bit
+	//{0x05, 0x880F},
+	{0x04, 0x0C40},//De-emphasis:50us;I2S Enable
+	{0x68, 0x1CF0},
 };
 
 void RDA5820_Delay_ms(uint16_t ms)
@@ -142,7 +99,7 @@ void i2c_write_data(uint8_t dev, uint8_t addr, uint8_t *data, uint8_t len)
   while(I2C_CTL0(I2C0)&0x0200);
 }
 
-void FM_RDA5820_Write(uint16_t aAddr, uint16_t aData)
+void RDA5820_Write(uint16_t aAddr, uint16_t aData)
 {
 	uint8_t tmp[2] = {0x0};
 	
@@ -206,9 +163,15 @@ void i2c_read_data(uint8_t dev, uint8_t addr, uint16_t *pData)
   i2c_ack_config(I2C0, I2C_ACK_ENABLE);
 }
 
-void FM_RDA5820_Read(uint8_t aAddr, uint16_t *pData)
+void RDA5820_Read(uint8_t aAddr, uint16_t *pData)
 {
 	i2c_read_data(RDA5820_I2C_ADDR, aAddr, pData);
+}
+
+void RDA5820_Reset(void)
+{
+	RDA5820_Write(0x02,0x0002); //SOFT_RESET
+	RDA5820_Delay_ms(100);
 }
 
 /**
@@ -224,37 +187,30 @@ void RDA5820_RX_Intialization(void)
 {
 	uint16_t DeviceID = 0x0000;
 	uint16_t cnt = 0;
+	uint16_t tmp;
 
-	FM_RDA5820_Write(RDA5820_tab[0][0], RDA5820_tab[0][1]);
+	RDA5820_Reset();
+	RDA5820_Read(0x00, &DeviceID);
 	RDA5820_Delay_ms(50);
-	FM_RDA5820_Read(0x00, &DeviceID);
-	RDA5820_Delay_ms(50);
+	
+	RDA5820_Write(0x02,0x0001);//Enable,
+	RDA5820_Delay_ms(600);
 
-	if (DeviceID == 0x5805){
-		FM_RDA5820_Write(RDA5820_tab[1][0], RDA5820_tab[1][1]);
-		RDA5820_Delay_ms(500);
-
-		for(cnt=0;cnt< ((sizeof(RDA5820_Intialization_tab))/(sizeof(RDA5820_Intialization_tab[0])));cnt++)
-			FM_RDA5820_Write(RDA5820_Intialization_tab[cnt][0], RDA5820_Intialization_tab[cnt][1]);
+	if(DeviceID == 0x5820){
+		for(cnt = 0;cnt< ((sizeof(RDA5820NS_RX_Intialization_tab))/(sizeof(RDA5820NS_RX_Intialization_tab[0])));cnt++){
+			RDA5820_Write(RDA5820NS_RX_Intialization_tab[cnt][0], RDA5820NS_RX_Intialization_tab[cnt][1]);
+			delay_1ms(50);
+		}
 		
-		for(cnt=0;cnt<3;cnt++)
-			RDA5820_tab[cnt+3][1] = RDA5820_Intialization_tab[cnt][1];
-	}else if(DeviceID == 0x5820){
-		#if defined(_SHARE_CRYSTAL_24MHz_)
-		RDA5820_tab[1][1] = 0xC451;
-		#elif defined(_SHARE_CRYSTAL_12MHz_)
-		RDA5820_tab[1][1] = 0xC411;
-		#elif defined(_SHARE_CRYSTAL_32KHz_)
-		RDA5820_tab[1][1] = 0xC401;
-		#endif
+		RDA5820_Read(0x40, &tmp);
+		tmp&=0xFFF0;
+		RDA5820_Write(0x40, tmp);//FM Receive
 		
-		FM_RDA5820_Write(RDA5820_tab[1][0], RDA5820_tab[1][1]);
-		RDA5820_Delay_ms(600);
-		for(cnt = 0;cnt< ((sizeof(RDA5820NS_RX_Intialization_tab))/(sizeof(RDA5820NS_RX_Intialization_tab[0])));cnt++)
-			FM_RDA5820_Write(RDA5820NS_RX_Intialization_tab[cnt][0], RDA5820NS_RX_Intialization_tab[cnt][1]);
+		RDA5820_Read(0x02, &tmp);
+		tmp|=0x8000;
+		RDA5820_Write(0x02, tmp);//Audio Output
 		
-		for(cnt=0;cnt<3;cnt++)
-			RDA5820_tab[cnt+3][1] = RDA5820NS_RX_Intialization_tab[cnt][1];
+		RDA5820_Read(0x03, &RDA5820_CHAN_REG);
 	}
 }
 
@@ -271,55 +227,56 @@ void RDA5820_TX_Intialization(void)
 {
 	uint16_t DeviceID = 0x0000;
 	uint16_t cnt = 0;
+	uint16_t tmp;
 
-	FM_RDA5820_Write(RDA5820_tab[0][0], RDA5820_tab[0][1]);
-	RDA5820_Delay_ms(100);
-	FM_RDA5820_Read(0x00, &DeviceID);
+	RDA5820_Reset();
+	RDA5820_Read(0x00, &DeviceID);
 	RDA5820_Delay_ms(50);
-
-	FM_RDA5820_Write(RDA5820_tab[1][0], RDA5820_tab[1][1]);
+	
+	RDA5820_Write(0x02,0x0001);//Enable,
 	RDA5820_Delay_ms(600);
 
-	if (DeviceID == 0x5805){
-		for(cnt = 0;cnt< ((sizeof(RDA5820_Intialization_tab))/(sizeof(RDA5820_Intialization_tab[0])));cnt++)
-			FM_RDA5820_Write(RDA5820_Intialization_tab[cnt][0], RDA5820_Intialization_tab[cnt][1]);
+	if(DeviceID == 0x5820){
+		for(cnt = 0;cnt< ((sizeof(RDA5820NS_TX_Intialization_tab))/(sizeof(RDA5820NS_TX_Intialization_tab[0])));cnt++){
+			RDA5820_Write(RDA5820NS_TX_Intialization_tab[cnt][0], RDA5820NS_TX_Intialization_tab[cnt][1]);
+			delay_1ms(50);
+		}
+		RDA5820_Read(0x40, &tmp);
+		tmp&=0xFFF0;
+		tmp|=0x0001;
+		RDA5820_Write(0x40, tmp);//FM Transmit
 		
-		for(cnt=0;cnt<3;cnt++)
-			RDA5820_tab[cnt+3][1] = RDA5820_Intialization_tab[cnt][1];
-	}else if(DeviceID == 0x5820){
-		for(cnt = 0;cnt< ((sizeof(RDA5820NS_TX_Intialization_tab))/(sizeof(RDA5820NS_TX_Intialization_tab[0])));cnt++)
-			FM_RDA5820_Write(RDA5820NS_TX_Intialization_tab[cnt][0], RDA5820NS_TX_Intialization_tab[cnt][1]);
-
-		for(cnt=0;cnt<3;cnt++)
-			RDA5820_tab[cnt+3][1] = RDA5820NS_TX_Intialization_tab[cnt][1];
+		RDA5820_Read(0x03, &RDA5820_CHAN_REG);
 	}
+	
 }
 
 void RDA5820_TXI2S_Intialization(void)
 {
 	uint16_t DeviceID = 0x0000;
 	uint16_t cnt = 0;
+	uint16_t tmp;
 
-	FM_RDA5820_Write(RDA5820_tab[0][0], RDA5820_tab[0][1]);
-	RDA5820_Delay_ms(100);
-	FM_RDA5820_Read(0x00, &DeviceID);
+	RDA5820_Reset();
+	RDA5820_Read(0x00, &DeviceID);
 	RDA5820_Delay_ms(50);
-
-	FM_RDA5820_Write(RDA5820_tab[1][0], RDA5820_tab[1][1]);
+	
+	RDA5820_Write(0x02,0x0001);//Enable,
 	RDA5820_Delay_ms(600);
 
-	if (DeviceID == 0x5805){
-		for(cnt = 0;cnt< ((sizeof(RDA5820_Intialization_tab))/(sizeof(RDA5820_Intialization_tab[0])));cnt++)
-			FM_RDA5820_Write(RDA5820_Intialization_tab[cnt][0], RDA5820_Intialization_tab[cnt][1]);
+	if(DeviceID == 0x5820){
+		for(cnt = 0;cnt< ((sizeof(RDA5820NS_TXI2S_Intialization_tab))/(sizeof(RDA5820NS_TXI2S_Intialization_tab[0])));cnt++){
+			RDA5820_Write(RDA5820NS_TXI2S_Intialization_tab[cnt][0], RDA5820NS_TXI2S_Intialization_tab[cnt][1]);
+			delay_1ms(50);
+		}
 		
-		for(cnt=0;cnt<3;cnt++)
-			RDA5820_tab[cnt+3][1] = RDA5820_Intialization_tab[cnt][1];
-	}else if(DeviceID == 0x5820){
-		for(cnt = 0;cnt< ((sizeof(RDA5820NS_TXI2S_Intialization_tab))/(sizeof(RDA5820NS_TXI2S_Intialization_tab[0])));cnt++)
-			FM_RDA5820_Write(RDA5820NS_TXI2S_Intialization_tab[cnt][0], RDA5820NS_TXI2S_Intialization_tab[cnt][1]);
-
-		for(cnt=0;cnt<3;cnt++)
-			RDA5820_tab[cnt+3][1] = RDA5820NS_TXI2S_Intialization_tab[cnt][1];
+		RDA5820_Read(0x40, &tmp);
+		tmp&=0xFFF0;
+		tmp|=0x0001;
+		RDA5820_Write(0x40, tmp);//FM Transmit
+		delay_1ms(50);
+		
+		RDA5820_Read(0x03, &RDA5820_CHAN_REG);
 	}
 }
 
@@ -327,28 +284,29 @@ void RDA5820_DAC_Intialization(void)
 {
 	uint16_t DeviceID = 0x0000;
 	uint16_t cnt = 0;
+	uint16_t tmp;
 
-	FM_RDA5820_Write(RDA5820_tab[0][0], RDA5820_tab[0][1]);
-	RDA5820_Delay_ms(100);
-	FM_RDA5820_Read(0x00, &DeviceID);
+	RDA5820_Reset();
+	RDA5820_Read(0x00, &DeviceID);
 	RDA5820_Delay_ms(50);
-
-	FM_RDA5820_Write(RDA5820_tab[1][0], RDA5820_tab[1][1]);
+	
+	RDA5820_Read(0x40, &tmp);
+	tmp&=0xFFF0;
+	tmp|=0x000C;
+	RDA5820_Write(0x40, tmp);//DAC
+	delay_1ms(50);
+	
+	RDA5820_Write(0x02,0x0001);//Enable,
 	RDA5820_Delay_ms(600);
-
-	if (DeviceID == 0x5805){
-		for(cnt = 0;cnt< ((sizeof(RDA5820_Intialization_tab))/(sizeof(RDA5820_Intialization_tab[0])));cnt++)
-			FM_RDA5820_Write(RDA5820_Intialization_tab[cnt][0], RDA5820_Intialization_tab[cnt][1]);
-		
-		for(cnt=0;cnt<3;cnt++)
-			RDA5820_tab[cnt+3][1] = RDA5820_Intialization_tab[cnt][1];
-	}else if(DeviceID == 0x5820){
+	
+	if(DeviceID == 0x5820){
 		for(cnt = 0;cnt< ((sizeof(RDA5820NS_DAC_Intialization_tab))/(sizeof(RDA5820NS_DAC_Intialization_tab[0])));cnt++)
-			FM_RDA5820_Write(RDA5820NS_DAC_Intialization_tab[cnt][0], RDA5820NS_DAC_Intialization_tab[cnt][1]);
-
-		for(cnt=0;cnt<3;cnt++)
-			RDA5820_tab[cnt+3][1] = RDA5820NS_DAC_Intialization_tab[cnt][1];
+			RDA5820_Write(RDA5820NS_DAC_Intialization_tab[cnt][0], RDA5820NS_DAC_Intialization_tab[cnt][1]);
+			delay_1ms(50);
 	}
+	
+	RDA5820_Write(0x02,0x8001);//Audio Output Enable,
+
 }
 
 /**
@@ -362,9 +320,7 @@ void RDA5820_DAC_Intialization(void)
 
 void RDA5820_Deinit(void)
 {
-	uint16_t RDA5820_poweroff = 0x0000;
-
-	FM_RDA5820_Write(0x02, RDA5820_poweroff);
+	RDA5820_Write(0x02, 0x0000);
 	RDA5820_Delay_ms(100);
 }
 
@@ -377,12 +333,32 @@ void RDA5820_Deinit(void)
 * @retval
 */
 
-void RDA5820_Mute(unsigned char mute)
+void RDA5820_MuteHW(unsigned char mute)
 {
+	uint16_t regs;
+	
+	RDA5820_Read(0x02, &regs);
+	
 	if(mute) //mute
-		FM_RDA5820_Write(0x02, RDA5820_tab[2][1]&0xbfff);
+		RDA5820_Write(0x02, regs&0xbfff);
 	else
-		FM_RDA5820_Write(0x02, RDA5820_tab[2][1]|0x4000);
+		RDA5820_Write(0x02, regs|0x4000);
+//	if(mute) //mute
+//		RDA5820_Write(0x02, RDA5820_tab[2][1]&0xbfff);
+//	else
+//		RDA5820_Write(0x02, RDA5820_tab[2][1]|0x4000);
+}
+
+void RDA5820_MuteSW(unsigned char mute)
+{
+	uint16_t regs;
+	
+	RDA5820_Read(0x04, &regs);
+	
+	if(mute) //mute
+		RDA5820_Write(0x04, regs|0x0200);
+	else
+		RDA5820_Write(0x04, regs&(~0x0200));
 }
 
 /**
@@ -399,16 +375,16 @@ uint32_t RDA5820_FreqToChan(uint32_t freq)
 	uint32_t curChan = 0;
 	uint32_t nBand,nSpace;
 
-	if((RDA5820_tab[3][1] & 0x0c) == 0x00)
+	if((RDA5820_CHAN_REG & 0x0c) == 0x00)
 		nBand = 8700;
-	else if((RDA5820_tab[3][1] & 0x0c) == 0x04)
+	else if((RDA5820_CHAN_REG & 0x0c) == 0x04)
 		nBand = 7600;
-	else if((RDA5820_tab[3][1] & 0x0c) == 0x08)
+	else if((RDA5820_CHAN_REG & 0x0c) == 0x08)
 		nBand = 7600;
 
-	if((RDA5820_tab[3][1] & 0x03) == 0x00)
+	if((RDA5820_CHAN_REG & 0x03) == 0x00)
 		nSpace = 10;
-	else if((RDA5820_tab[3][1] & 0x03) == 0x01)
+	else if((RDA5820_CHAN_REG & 0x03) == 0x01)
 		nSpace = 20;
 	else
 		nSpace = 5;
@@ -433,16 +409,16 @@ uint32_t RDA5820_ChanToFreq(uint32_t chan)
 	uint32_t nBand,nSpace;
 	uint32_t freq = 0;
 
-	if((RDA5820_tab[3][1] & 0x0c) == 0x00)
+	if((RDA5820_CHAN_REG & 0x0c) == 0x00)
 		nBand = 8700;
-	else if((RDA5820_tab[3][1] & 0x0c) == 0x04)
+	else if((RDA5820_CHAN_REG & 0x0c) == 0x04)
 		nBand = 7600;
-	else if((RDA5820_tab[3][1] & 0x0c) == 0x08)
+	else if((RDA5820_CHAN_REG & 0x0c) == 0x08)
 		nBand = 7600;
 	
-	if((RDA5820_tab[3][1] & 0x03) == 0x00)
+	if((RDA5820_CHAN_REG & 0x03) == 0x00)
 		nSpace = 10;
-	else if((RDA5820_tab[3][1] & 0x03) == 0x01)
+	else if((RDA5820_CHAN_REG & 0x03) == 0x01)
 		nSpace = 20;
 	else
 		nSpace = 5;
@@ -468,10 +444,31 @@ void RDA5820_SetFreq(uint32_t curFreq)
 
 	curChan = RDA5820_FreqToChan(curFreq);
 	Chanel_H = (curChan>>2);
-	RDA5820_channel_tune=(Chanel_H<<8) |(((curChan&0x0003)<<6)|(RDA5820_tab[3][1]&0x000f)|0x0010) ;	//set tune bit
-	FM_RDA5820_Write( 0x03, RDA5820_channel_tune);
+	RDA5820_channel_tune=(Chanel_H<<8) |(((curChan&0x0003)<<6)|(RDA5820_CHAN_REG&0x000f)|0x0010) ;	//set tune bit
+	RDA5820_Write( 0x03, RDA5820_channel_tune);
 	RDA5820_Delay_ms(500);//kal_sleep_task(5);
 
+}
+
+uint8_t RDA5820_Seek(uint8_t dir)
+{
+	uint16_t tmp;
+	
+	RDA5820_Read(0x0A,&tmp);
+	
+	if(tmp&0x4000){	
+		RDA5820_Read(0x02,&tmp);
+		if(dir==0){
+			tmp &=0xFDFF;
+			tmp |=0x0100;		
+		}else{
+			tmp |=0x0300;
+		}
+		RDA5820_Write(0x02,tmp);
+		return SEEK_OK;
+	}else{
+		return SEEK_NG;
+	}
 }
 
 /**
@@ -494,13 +491,13 @@ bool RDA5820_ValidStop(uint32_t freq)
 
 	curChan = RDA5820_FreqToChan(freq);
 	Chanel_H = (curChan>>2);
-	RDA5820_channel_tune=(Chanel_H<<8) |(((curChan&0x0003)<<6)|(RDA5820_tab[3][1]&0x000f)|0x0010) ;	//set tune bit
-	FM_RDA5820_Write( 0x03, RDA5820_channel_tune);
+	RDA5820_channel_tune=(Chanel_H<<8) |(((curChan&0x0003)<<6)|(RDA5820_CHAN_REG&0x000f)|0x0010) ;	//set tune bit
+	RDA5820_Write( 0x03, RDA5820_channel_tune);
 	RDA5820_Delay_ms(300);//kal_sleep_task(10);
 	//read REG0A&0B
-	FM_RDA5820_Read(0x0a, &RDA5820_data[0]);
+	RDA5820_Read(0x0a, &RDA5820_data[0]);
 	RDA5820_Delay_ms(100);//kal_sleep_task(10);
-	FM_RDA5820_Read(0x0b, &RDA5820_data[1]);
+	RDA5820_Read(0x0b, &RDA5820_data[1]);
 	//check whether STC=1
 	if((RDA5820_data[0]&0x4000)==0) falseStation=1;
 	//check FM_TURE
@@ -537,10 +534,12 @@ uint8_t RDA5820_GetSigLvl(uint32_t curf)
 
 void RDA5820_SetVolumeLevel(unsigned char level)
 {
-	RDA5820_tab[5][1] &= 0xFFF0;
-	RDA5820_tab[5][1] |= (level & 0x0f);
-
-	FM_RDA5820_Write(0x05, RDA5820_tab[5][1]);
+	uint16_t tmp;
+	
+	RDA5820_Read(0x05, &tmp);
+	tmp &= 0xFFF0;
+	tmp |= (level & 0x0f);
+	RDA5820_Write(0x05, tmp);
 }
 
 void i2c_config(void)
@@ -570,9 +569,4 @@ void i2c_config(void)
 void RDA5820_CommInit(void)
 {
 	i2c_config();
-}
-
-void RDA5820_SetModu(uint8_t level)
-{
-	FM_RDA5820_Write(0x68, 0x0100|level);
 }
