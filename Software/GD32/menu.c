@@ -19,7 +19,7 @@
 MENU_ITEM m0_main[4];
 MENU_ITEM m1_launch1[1];
 MENU_ITEM m4_launch2[1];
-MENU_ITEM m2_receive[2];
+MENU_ITEM m2_receive[3];
 MENU_ITEM m3_dac[1];
 MENU_ITEM receive0_setfreq[1];
 MENU_ITEM receive1_setvol[1];
@@ -69,20 +69,6 @@ void receiveSetFreq(uint8_t para)
 	}
 }
 
-uint8_t modu=0xf0;
-void txSetModu(uint8_t para)
-{
-	if(KEY_ENTER==para){
-		RDA5820_SetModu(modu); 
-	}else if(KEY_INPUP==para){
-		if(modu<0xff)modu++;
-		displayNum(modu,10);
-	}else if(KEY_INPDN==para){
-		if(modu>0)modu--;
-		displayNum(modu,10);
-	}
-}
-
 void receiveSetVolu(uint8_t para)
 {
 	if(KEY_ENTER==para){
@@ -116,9 +102,9 @@ void nullfunc(uint8_t para)
 
 MENU_ITEM m0_main[4]= 
 { 
-	{4,{C_L,C_A,C_U,C_1},nullfunc,m1_launch1,Null}, //Launch,FM Transmit
-	{4,{C_L,C_A,C_U,C_2},nullfunc,m4_launch2,Null}, //Launch,FM Transmit
-	{4,{C_RL,C_E,C_C,C_E},nullfunc,m2_receive,Null},//Receive,FM Receive
+	{4,{C_A,C_U,C_H,C_OFF},nullfunc,m1_launch1,Null}, //Launch,FM Transmit
+	{4,{C_B,C_T,C_OFF,C_OFF},nullfunc,m4_launch2,Null}, //Launch,FM Transmit
+	{4,{C_A,C_E,C_C,C_OFF},nullfunc,m2_receive,Null},//Receive,FM Receive
 	{4,{C_D,C_A,C_C,C_OFF},nullfunc,m3_dac,Null},//DAC
 };
 
@@ -127,7 +113,7 @@ MENU_ITEM m1_launch1[1]=
 	{1,{C_F,C_DOT,C_OFF,C_OFF},launch1SetFreq,Null,m0_main}, //Frequency
 };
 
-MENU_ITEM m2_receive[2]= 
+MENU_ITEM m2_receive[3]= 
 { 
 	{2,{C_F|C_DOT,C_OFF,C_OFF,C_OFF},receiveSetFreq,receive0_setfreq,m0_main},//Set channel
 	{2,{C_U|C_DOT,C_OFF,C_OFF,C_OFF},receiveSetVolu,receive1_setvol,m0_main},//Volume
@@ -151,6 +137,11 @@ MENU_ITEM receive0_setfreq[1]=
 MENU_ITEM receive1_setvol[1]= 
 { 
 	{1,{C_U|C_DOT,C_OFF,C_OFF,C_OFF},receiveSetVolu,Null,m2_receive},//Volume
+};
+
+MENU_ITEM receive1_seek[1]= 
+{ 
+	{1,{C_5,C_E,C_E,C_OFF},receiveSetVolu,Null,m2_receive},//Seek
 };
 
 void title_show(MENU_ITEM *mitem)
