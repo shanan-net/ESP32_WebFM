@@ -31,7 +31,7 @@ void radio_rx_init(uint16_t freq,uint8_t vol)
 	}
 	RDA5820_SetVolumeLevel(vol);
 	RDA5820_SetFreq(freq);
-	RDA5820_Mute(0);
+	RDA5820_MuteHW(0);
 }
 
 void radio_tx_init(uint16_t freq)
@@ -44,7 +44,7 @@ void radio_tx_init(uint16_t freq)
 		flag_init=true;
 	}
 	RDA5820_SetFreq(freq);
-	RDA5820_Mute(0);
+	RDA5820_MuteHW(0);
 }
 
 void radio_txi2s_init(uint16_t freq)
@@ -57,7 +57,7 @@ void radio_txi2s_init(uint16_t freq)
 		flag_init=true;
 	}
 	RDA5820_SetFreq(freq);
-	RDA5820_Mute(0);
+	RDA5820_MuteHW(0);
 }
 
 void radio_dac_init(uint8_t vol)
@@ -70,7 +70,7 @@ void radio_dac_init(uint8_t vol)
 		flag_init=true;
 	}
 	RDA5820_SetVolumeLevel(vol);
-	RDA5820_Mute(0);
+	RDA5820_MuteHW(0);
 }
 
 bool radio_seek(seek_typedef_enum seekdir)
